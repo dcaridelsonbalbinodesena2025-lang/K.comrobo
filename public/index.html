@@ -3,145 +3,165 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BRAIN PRO - DASHBOARD V2</title>
+    <title>BRAIN PRO - ELITE V3</title>
     <style>
-        :root { --primary: #00d4ff; --bg: #050a12; --card: #111827; --text: #e5e7eb; --success: #10b981; --danger: #ef4444; --warning: #f59e0b; }
-        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; margin: 0; padding: 10px; }
-        
-        .header { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--primary); }
+        :root { --primary: #00d4ff; --bg: #050a12; --card: #111827; --text: #e5e7eb; --success: #10b981; --danger: #ef4444; }
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; margin: 0; padding: 10px; font-size: 14px; }
+        .card { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #1f2937; margin-bottom: 10px; }
+        h3 { color: var(--primary); font-size: 14px; text-transform: uppercase; margin-top: 0; border-bottom: 1px solid #374151; padding-bottom: 5px; }
         .grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
         @media(min-width: 768px) { .grid { grid-template-columns: 1fr 1fr; } }
-
-        .card { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #1f2937; }
-        h3 { margin-top: 0; color: var(--primary); font-size: 16px; border-bottom: 1px solid #1f2937; padding-bottom: 8px; }
-
-        .input-group { margin-bottom: 10px; }
-        label { display: block; font-size: 12px; margin-bottom: 4px; color: #9ca3af; }
-        input, select { width: 100%; background: #1f2937; border: 1px solid #374151; color: white; padding: 8px; border-radius: 6px; box-sizing: border-box; }
-
-        .switch-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; }
-        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        input, select { width: 100%; background: #1f2937; border: 1px solid #374151; color: white; padding: 8px; border-radius: 6px; margin-top: 5px; }
+        .switch-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .switch { position: relative; width: 34px; height: 18px; }
         .switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #374151; transition: .4s; border-radius: 20px; }
         input:checked + .slider { background-color: var(--primary); }
-        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider:before { transform: translateX(20px); }
-
-        .placar-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; }
-        .placar-item { padding: 10px; border-radius: 8px; background: #1f2937; }
-        .val { display: block; font-weight: bold; font-size: 18px; }
-        .lab { font-size: 10px; text-transform: uppercase; color: #9ca3af; }
-
-        .btn-save { width: 100%; background: var(--primary); color: #000; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+        .slider:before { position: absolute; content: ""; height: 12px; width: 12px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider:before { transform: translateX(16px); }
+        .btn-save { width: 100%; background: var(--primary); color: #000; border: none; padding: 15px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; box-shadow: 0 4px 15px rgba(0, 212, 255, 0.3); }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div><strong>BRAIN PRO</strong> <small>V2.0</small></div>
-        <div id="clock">00:00:00</div>
-    </div>
-
     <div class="grid">
         <div class="card">
-            <h3>💰 Financeiro & Banca</h3>
-            <div class="input-group">
-                <label>Banca Inicial (R$)</label>
-                <input type="number" id="banca_inicial" value="1000">
-            </div>
-            <div class="input-group">
-                <label>Payout (%)</label>
-                <input type="number" id="payout" value="85">
-            </div>
-            <div class="input-group">
-                <label>Entrada (% da Banca)</label>
-                <input type="number" id="percentual_entrada" value="1">
-            </div>
-            <div class="placar-item" style="background: #000; margin-top: 10px;">
-                <span class="lab">Saldo Atual</span>
-                <span id="banca_atual" class="val" style="color: var(--success);">R$ 1000,00</span>
-            </div>
+            <h3>💰 Gestão de Banca</h3>
+            <label>Banca Inicial (R$)</label> <input type="number" id="banca" value="2000">
+            <label>Entrada (%)</label> <input type="number" id="entrada_perc" value="1">
+            <label>Gale Inteligente?</label>
+            <select id="tipo_gale">
+                <option value="normal">Normal (Dobra)</option>
+                <option value="smart">Inteligente (Abortar se tendência mudar)</option>
+            </select>
+            <label>Nível de Gale</label>
+            <select id="nivel_gale">
+                <option value="0">Sem Gale</option>
+                <option value="1">Até Gale 1</option>
+                <option value="2">Até Gale 2</option>
+                <option value="3">Até Gale 3</option>
+            </select>
         </div>
 
         <div class="card">
-            <h3>⚙️ Filtros & Tendência</h3>
-            <div class="switch-group">
-                <span>Engolfo Alta/Baixa</span>
-                <label class="switch"><input type="checkbox" id="padrao_engolfo" checked><span class="slider"></span></label>
-            </div>
-            <div class="switch-group">
-                <span>Martelo/Estrela</span>
-                <label class="switch"><input type="checkbox" id="padrao_martelo"><span class="slider"></span></label>
-            </div>
-            <div class="switch-group">
-                <span>Filtro EMA (Tendência)</span>
-                <label class="switch"><input type="checkbox" id="filtro_ema" checked><span class="slider"></span></label>
-            </div>
-            <div class="switch-group">
-                <span>Tendência M5/M15</span>
-                <label class="switch"><input type="checkbox" id="filtro_m5_m15"><span class="slider"></span></label>
-            </div>
-            <div class="switch-group">
-                <span>Suporte & Resistência</span>
-                <label class="switch"><input type="checkbox" id="filtro_sr"><span class="slider"></span></label>
-            </div>
+            <h3>📈 Médias Móveis (EMA)</h3>
+            <div class="switch-group"><span>EMA 10 (Curta)</span><label class="switch"><input type="checkbox" id="ema10" checked><span class="slider"></span></label></div>
+            <div class="switch-group"><span>EMA 20 (Trend)</span><label class="switch"><input type="checkbox" id="ema20" checked><span class="slider"></span></label></div>
+            <div class="switch-group"><span>EMA 100 (Longa)</span><label class="switch"><input type="checkbox" id="ema100"><span class="slider"></span></label></div>
+            <div class="switch-group"><span>EMA 200 (Institucional)</span><label class="switch"><input type="checkbox" id="ema200"><span class="slider"></span></label></div>
+            <hr style="border:0; border-top:1px solid #374151">
+            <h3>🕒 Tendência Timeframes</h3>
+            <div class="switch-group"><span>Validar em M5</span><label class="switch"><input type="checkbox" id="tm5"><span class="slider"></span></label></div>
+            <div class="switch-group"><span>Validar em M15</span><label class="switch"><input type="checkbox" id="tm15"><span class="slider"></span></label></div>
         </div>
 
         <div class="card">
-            <h3>📊 Placar Geral</h3>
-            <div class="placar-grid">
-                <div class="placar-item"><span id="win_direto" class="val" style="color:var(--success)">0</span><span class="lab">Dir</span></div>
-                <div class="placar-item"><span id="win_g1" class="val" style="color:var(--primary)">0</span><span class="lab">G1</span></div>
-                <div class="placar-item"><span id="win_g2" class="val" style="color:var(--warning)">0</span><span class="lab">G2</span></div>
-                <div class="placar-item"><span id="loss" class="val" style="color:var(--danger)">0</span><span class="lab">Red</span></div>
-            </div>
-            <div style="text-align:center; margin-top:10px;">
-                <small>Assertividade:</small> <strong id="assertividade">0%</strong>
-            </div>
+            <h3>🕯️ Padrões de Alta/Baixa</h3>
+            <div class="switch-group"><span>Engolfos</span><label class="switch"><input type="checkbox" id="p_engolfo" checked><span class="slider"></span></label></div>
+            <div class="switch-group"><span>3 Soldados/Corvos</span><label class="switch"><input type="checkbox" id="p_3velas"><span class="slider"></span></label></div>
+            <div class="switch-group"><span>Martelo/Enforcado</span><label class="switch"><input type="checkbox" id="p_hammer"><span class="slider"></span></label></div>
+            <div class="switch-group"><span>Fractais (Top/Bottom)</span><label class="switch"><input type="checkbox" id="p_fractal"><span class="slider"></span></label></div>
         </div>
 
         <div class="card">
-            <h3>📡 Ativos em Análise</h3>
-            <div id="lista_ativos">
-                </div>
-            <button class="btn-save" onclick="salvarConfig()">ATUALIZAR CÉREBRO 🧠</button>
+            <h3>🎯 Seleção de Ativos (Slots)</h3>
+            <div id="slots_ativos">
+                <select class="ativo-slot" id="slot1"></select>
+                <select class="ativo-slot" id="slot2"></select>
+                <select class="ativo-slot" id="slot3"></select>
+                <select class="ativo-slot" id="slot4"></select>
+                <select class="ativo-slot" id="slot5"></select>
+                <select class="ativo-slot" id="slot6"></select>
+            </div>
+            <button class="btn-save" onclick="enviarParaCerebro()">SINCRONIZAR ROBÔ ⚡</button>
         </div>
     </div>
 
     <script>
-        const ativos = ["R_100", "R_75", "R_50", "R_25", "R_10", "1HZ100V"];
-        const listaDiv = document.getElementById('lista_ativos');
+        const listaAtivos = [
+   { id: "NONE", nome: "❌ DESATIVAR SLOT" },
+    { id: "R_10", nome: "📊 Volatility 10" },
+    { id: "R_25", nome: "📊 Volatility 25" },
+    { id: "R_50", nome: "📊 Volatility 50" },
+    { id: "R_75", nome: "📊 Volatility 75" },
+    { id: "R_100", nome: "📊 Volatility 100" },
+    { id: "1HZ10V", nome: "📈 Volatility 10 (1s)" },
+    { id: "1HZ25V", nome: "📈 Volatility 25 (1s)" },
+    { id: "1HZ50V", nome: "📈 Volatility 50 (1s)" },
+    { id: "1HZ75V", nome: "📈 Volatility 75 (1s)" },
+    { id: "1HZ100V", nome: "📈 Volatility 100 (1s)" },
+    { id: "BOOM300", nome: "💥 Boom 300" },
+    { id: "BOOM500", nome: "💥 Boom 500" },
+    { id: "BOOM1000", nome: "💥 Boom 1000" },
+    { id: "CRASH300", nome: "📉 Crash 300" },
+    { id: "CRASH500", nome: "📉 Crash 500" },
+    { id: "CRASH1000", nome: "📉 Crash 1000" },
+    { id: "ST50", nome: "🎢 Step Index" },
+    { id: "frxAUDUSD", nome: "💱 AUD/USD" },
+    { id: "frxEURUSD", nome: "💱 EUR/USD" },
+    { id: "frxGBPUSD", nome: "💱 GBP/USD" },
+    { id: "frxNZDUSD", nome: "💱 NZD/USD" },
+    { id: "frxUSDCAD", nome: "💱 USD/CAD" },
+    { id: "frxUSDCHF", nome: "💱 USD/CHF" },
+    { id: "frxUSDJPY", nome: "💱 USD/JPY" },
+    { id: "frxAUDCAD", nome: "💱 AUD/CAD" },
+    { id: "frxAUDCHF", nome: "💱 AUD/CHF" },
+    { id: "frxAUDJPY", nome: "💱 AUD/JPY" },
+    { id: "frxAUDNZD", nome: "💱 AUD/NZD" },
+    { id: "frxEURAUD", nome: "💱 EUR/AUD" },
+    { id: "frxEURCAD", nome: "💱 EUR/CAD" },
+    { id: "frxEURCHF", nome: "💱 EUR/CHF" },
+    { id: "frxEURGBP", nome: "💱 EUR/GBP" },
+    { id: "frxEURJPY", nome: "💱 EUR/JPY" },
+    { id: "frxEURNZD", nome: "💱 EUR/NZD" },
+    { id: "frxGBPAUD", nome: "💱 GBP/AUD" },
+    { id: "frxGBPCAD", nome: "💱 GBP/CAD" },
+    { id: "frxGBPCHF", nome: "💱 GBP/CHF" },
+    { id: "frxGBPJPY", nome: "💱 GBP/JPY" },
+    { id: "frxGBPNZD", nome: "💱 GBP/NZD" },
+    { id: "frxNZDJPY", nome: "💱 NZD/JPY" },
+    { id: "frxUSDMXN", nome: "💱 USD/MXN" },    
+    { id: "frxSGDJPY", nome: "💱 SGD/JPY" },
+    { id: "frxEURNOK", nome: "💱 EUR/NOK" },
+    { id: "frxEURPLN", nome: "💱 EUR/PLN" },
+    { id: "frxEURSEK", nome: "💱 EUR/SEK" },
+    { id: "frxUSDSGD", nome: "💱 USD/SGD" },
+    { id: "frxXAUUSD", nome: "🪙 OURO (XAU/USD)" },
+    { id: "cryBTCUSD", nome: "₿ BITCOIN (BTC/USD)" },
+    { id: "cryETHUSD", nome: "♢ ETHEREUM (ETH/USD)" }
+            // ... Adicione os outros da sua lista aqui
+        ];
 
-        ativos.forEach(at => {
-            listaDiv.innerHTML += `
-                <div class="switch-group">
-                    <span>${at}</span>
-                    <label class="switch"><input type="checkbox" class="ativo_check" value="${at}" checked><span class="slider"></span></label>
-                </div>`;
+        // Preenche os slots
+        document.querySelectorAll('.ativo-slot').forEach(select => {
+            listaAtivos.forEach(at => {
+                let opt = document.createElement('option');
+                opt.value = at.id;
+                opt.innerHTML = at.nome;
+                select.appendChild(opt);
+            });
         });
 
-        function salvarConfig() {
-            const config = {
-                banca: document.getElementById('banca_inicial').value,
-                payout: document.getElementById('payout').value,
-                entrada: document.getElementById('percentual_entrada').value,
-                filtros: {
-                    engolfo: document.getElementById('padrao_engolfo').checked,
-                    ema: document.getElementById('filtro_ema').checked,
-                    tendencia_m5: document.getElementById('filtro_m5_m15').checked
-                },
-                ativos_ativos: Array.from(document.querySelectorAll('.ativo_check:checked')).map(i => i.value)
+        function enviarParaCerebro() {
+            const data = {
+                banca: document.getElementById('banca').value,
+                gale: { tipo: document.getElementById('tipo_gale').value, nivel: document.getElementById('nivel_gale').value },
+                emas: { e10: document.getElementById('ema10').checked, e20: document.getElementById('ema20').checked, e100: document.getElementById('ema100').checked, e200: document.getElementById('ema200').checked },
+                timeframes: { m5: document.getElementById('tm5').checked, m15: document.getElementById('tm15').checked },
+                padroes: { engolfo: document.getElementById('p_engolfo').checked, tvelas: document.getElementById('p_3velas').checked, fractal: document.getElementById('p_fractal').checked },
+                slots: [
+                    document.getElementById('slot1').value, document.getElementById('slot2').value,
+                    document.getElementById('slot3').value, document.getElementById('slot4').value,
+                    document.getElementById('slot5').value, document.getElementById('slot6').value
+                ]
             };
 
-            // Envia para o servidor Render
             fetch('/atualizar-config', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            }).then(() => alert("Configurações enviadas ao Robô!"));
+                body: JSON.stringify(data)
+            }).then(() => alert("CÉREBRO ATUALIZADO COM SUCESSO!"));
         }
-
-        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString(); }, 1000);
     </script>
 </body>
 </html>
