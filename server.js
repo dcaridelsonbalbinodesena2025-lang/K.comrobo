@@ -126,13 +126,18 @@ function conectar(idAtivo) {
     if (idAtivo === "NONE") return;
     const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
     ws.on('open', () => ws.send(JSON.stringify({ ticks_history: idAtivo, end: "latest", count: 100, style: "candles", granularity: 60, subscribe: 1 })));
+    
     ws.on('message', async (data) => {
         const res = JSON.parse(data);
         if (!estadosAtivos[idAtivo]) estadosAtivos[idAtivo] = { history: [], lastTime: 0, alertaEnviado: false, sinalPendente: null, emOperacao: false };
         const est = estadosAtivos[idAtivo];
+        
         if (res.candles) est.history = res.candles;
-        if (res.ohlc) {
+        
+        if (res.ohlc) { // REMOVI O "!stopAtivo" DAQUI PARA ELE NUNCA PARAR
             const segundos = new Date().getSeconds();
+            
+            // Lógica de Alerta
             if (segundos >= 50 && segundos < 58 && !est.alertaEnviado && !est.emOperacao) {
                 const analise = await analisarMercado(est.history, idAtivo);
                 if (analise) {
@@ -142,6 +147,8 @@ function conectar(idAtivo) {
                     enviarTelegram(`⚠️ *ALERTA BRAIN PRO*\n📊 Ativo: ${idAtivo}\n🎯 Padrão: ${analise.padrao}\n⏰ Possível entrada às: ${hEntrada}`);
                 }
             }
+            
+            // Virada de Vela
             if (res.ohlc.open_time !== est.lastTime) {
                 if (est.alertaEnviado) {
                     const confirmacao = await analisarMercado(est.history, idAtivo);
@@ -161,6 +168,7 @@ function conectar(idAtivo) {
     });
     ws.on('close', () => setTimeout(() => conectar(idAtivo), 5000));
 }
+
 
 app.post('/atualizar-config', (req, res) => {
     configGlobal = { ...configGlobal, ...req.body };
