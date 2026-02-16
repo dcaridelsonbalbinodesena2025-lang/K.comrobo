@@ -87,17 +87,16 @@ async function executarCiclo(idAtivo, analise, nivelGale = 0) {
             const lucroTotal = valorAposta + (valorAposta * configGlobal.payout);
             bancaAtual += lucroTotal;
             placar.win++;
-            await enviarTelegram(`✅ **GREEN!!**\n📊 Placar: ${placar.win}W - ${placar.loss}L\n💵 Banca: R$ ${bancaAtual.toFixed(2)}`);
+            await enviarTelegram(`✅ **GREEN NO ${idAtivo}!!**\n📊 Placar: ${placar.win}W - ${placar.loss}L\n💵 Banca: R$ ${bancaAtual.toFixed(2)}`);
             est.emOperacao = false;
             aconselharGestao();
         } else if (nivelGale < configGlobal.gale.nivel) {
-            // Lógica Gale Inteligente (se houver inversão na EMA10, aborta e conta como loss)
             const e10 = calcularEMA(est.history, 10);
             const inverteu = (analise.direcao === "CALL" && vela.close < e10) || (analise.direcao === "PUT" && vela.close > e10);
             
             if (configGlobal.gale.tipo === 'smart' && inverteu) {
                 placar.loss++;
-                await enviarTelegram(`🚫 **GALE ABORTADO (Smart)**\n📉 Prejuízo total da operação: R$ ${valorAposta.toFixed(2)}\n📊 Placar: ${placar.win}W - ${placar.loss}L\n💵 Banca: R$ ${bancaAtual.toFixed(2)}`);
+                await enviarTelegram(`🚫 **GALE ABORTADO EM ${idAtivo}**\n📉 Prejuízo: R$ ${valorAposta.toFixed(2)}\n📊 Placar: ${placar.win}W - ${placar.loss}L\n💵 Banca: R$ ${bancaAtual.toFixed(2)}`);
                 est.emOperacao = false;
                 aconselharGestao();
             } else {
@@ -105,7 +104,7 @@ async function executarCiclo(idAtivo, analise, nivelGale = 0) {
             }
         } else {
             placar.loss++;
-            await enviarTelegram(`❌ **RED FINAL!**\n📊 Placar: ${placar.win}W - ${placar.loss}L\n💵 Banca: R$ ${bancaAtual.toFixed(2)}`);
+            await enviarTelegram(`❌ **RED FINAL EM ${idAtivo}!**\n📊 Placar: ${placar.win}W - ${placar.loss}L\n💵 Banca: R$ ${bancaAtual.toFixed(2)}`);
             est.emOperacao = false;
             aconselharGestao();
         }
@@ -114,7 +113,7 @@ async function executarCiclo(idAtivo, analise, nivelGale = 0) {
 
 function aconselharGestao() {
     if (placar.win >= 3) {
-        enviarTelegram("🏆 **META BATIDA!**\nVocê já fez 3x0 ou 3x1. Objetivo alcançado com sucesso! Sinais continuam, mas considere o lucro no bolso! 💰");
+        enviarTelegram("🏆 **META BATIDA!**\nVocê já fez 3 vitórias. Objetivo alcançado! Sinais continuam, mas considere o lucro no bolso! 💰");
     } else if (placar.loss >= 1) {
         enviarTelegram("🛑 **ALERTA DE STOP LOSS!**\nVocê atingiu seu limite de perda. Considere parar para preservar sua banca! 📉");
     } else {
@@ -171,6 +170,6 @@ app.post('/atualizar-config', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Cérebro de Elite "Conselheiro" Online!`);
+    console.log(`🚀 Cérebro de Elite Atualizado Online!`);
     configGlobal.slots.forEach(id => conectar(id));
 });
