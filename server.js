@@ -9,36 +9,41 @@ app.use(express.static('public'));
 
 const PORT = process.env.PORT || 3000;
 
-// --- CONFIGURAÇÕES ---
+// --- CONFIGURAÇÕES DO TELEGRAM ---
 const TG_TOKEN = "8427077212:AAEiL_3_D_-fukuaR95V3FqoYYyHvdCHmEI";
 const TG_CHAT_ID = "-1003355965894";
 
-const ATIVOS = [
-    { id: "R_100", nome: "Volatility 100" },
-    { id: "R_75", nome: "Volatility 75" },
-    { id: "R_50", nome: "Volatility 50" },
-    { id: "R_25", nome: "Volatility 25" },
-    { id: "R_10", nome: "Volatility 10" },
-    { id: "1HZ100V", nome: "Volatility 100 (1s)" }
-];
+// --- ESTADO GLOBAL (O que o Painel controla) ---
+let configGlobal = {
+    bancaAtual: 1000.00,
+    payout: 0.85,
+    percentualEntrada: 1,
+    ativosAtivos: ["R_100", "R_75", "R_50", "R_25", "R_10", "1HZ100V"],
+    filtros: { engolfo: true, martelo: false, ema: true, tendencia_m5: false }
+};
 
-// ESTADO GLOBAL
-let config = { bancaAtual: 1000.00, percentualEntrada: 1, payout: 0.85 };
-let estados = {}; 
+let estadosAtivos = {};
+let placar = { win: 0, g1: 0, g2: 0, loss: 0 };
 
-ATIVOS.forEach(a => {
-    estados[a.id] = { history: [], lastCandleTime: 0, sinalPendente: null, alertaEnviado: false };
+// Inicializa o estado de cada ativo
+configGlobal.ativosAtivos.forEach(id => {
+    estadosAtivos[id] = { history: [], lastCandleTime: 0, sinalPendente: null, alertaEnviado: false };
 });
 
-// --- FUNÇÕES DE MENSAGENS (Aquelas que você pediu) ---
+// --- ROTA PARA O PAINEL MANDAR ORDENS ---
+app.post('/atualizar-config', (req, res) => {
+    const novaConfig = req.body;
+    configGlobal.bancaAtual = parseFloat(novaConfig.banca);
+    configGlobal.payout = parseFloat(novaConfig.payout) / 100;
+    configGlobal.percentualEntrada = parseFloat(novaConfig.entrada);
+    configGlobal.filtros = novaConfig.filtros;
+    configGlobal.ativosAtivos = novaConfig.ativos_ativos;
+    
+    console.log("✅ Cérebro Atualizado pelo Painel!");
+    res.sendStatus(200);
+});
 
-function obterHorarios() {
-    const agora = new Date();
-    const hIn = agora.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    const hFim = new Date(agora.getTime() + 60000).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' });
-    return { hIn, hFim };
-}
-
+// --- FUNÇÃO DE MENSAGEM ---
 async function enviarTelegram(msg) {
     try {
         await fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
@@ -50,35 +55,39 @@ async function enviarTelegram(msg) {
 }
 
 // --- LÓGICA DE ANÁLISE ---
-
-function analisarPadrao(candles) {
+function analisarPadrao(candles, idAtivo) {
+    if (!configGlobal.ativosAtivos.includes(idAtivo)) return null;
     if (candles.length < 2) return null;
+
     const atual = candles[candles.length - 1];
     const anterior = candles[candles.length - 2];
 
-    if (atual.close > atual.open && anterior.open > anterior.close && atual.close > anterior.open) {
-        return { nome: "ENGOLFO ALTA", dir: "CALL" };
-    }
-    if (atual.open > atual.close && anterior.close > anterior.open && atual.close < anterior.open) {
-        return { nome: "ENGOLFO BAIXA", dir: "PUT" };
+    // Só analisa Engolfo se estiver ativo no Painel
+    if (configGlobal.filtros.engolfo) {
+        if (atual.close > atual.open && anterior.open > anterior.close && atual.close > anterior.open) {
+            return { nome: "ENGOLFO ALTA", dir: "CALL" };
+        }
+        if (atual.open > atual.close && anterior.close > anterior.open && atual.close < anterior.open) {
+            return { nome: "ENGOLFO BAIXA", dir: "PUT" };
+        }
     }
     return null;
 }
 
-// --- CONEXÃO MULTI-ATIVOS ---
-
-function conectarAtivo(ativo) {
+// --- CONEXÃO COM A DERIV ---
+function conectar(idAtivo) {
     const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
 
     ws.on('open', () => {
         ws.send(JSON.stringify({
-            ticks_history: ativo.id, end: "latest", count: 50, style: "candles", granularity: 60, subscribe: 1
+            ticks_history: idAtivo, end: "latest", count: 50, style: "candles", granularity: 60, subscribe: 1
         }));
     });
 
     ws.on('message', (data) => {
         const res = JSON.parse(data);
-        const est = estados[ativo.id];
+        const est = estadosAtivos[idAtivo];
+        if (!est) return;
 
         if (res.candles) est.history = res.candles;
 
@@ -86,42 +95,40 @@ function conectarAtivo(ativo) {
             const ohlc = res.ohlc;
             const segundos = new Date().getSeconds();
 
-            // 1. LÓGICA DE ALERTA (Aos 45 segundos)
+            // ALERTA PRÉVIO (Aos 45 seg)
             if (segundos >= 45 && !est.alertaEnviado) {
-                const padrao = analisarPadrao([...est.history, { open: ohlc.open, close: ohlc.close }]);
+                const padrao = analisarPadrao([...est.history, { open: ohlc.open, close: ohlc.close }], idAtivo);
                 if (padrao) {
                     est.alertaEnviado = true;
                     est.sinalPendente = padrao;
-                    const hEntrada = new Date(new Date().getTime() + (60 - segundos) * 1000).toLocaleTimeString('pt-BR');
-                    enviarTelegram(`⚠️ *ALERTA BRAIN PRO*\n\n📊 Ativo: ${ativo.nome}\n🎯 Padrão: ${padrao.nome}\n📈 Filtro: PADRÃO PURO ✅\n🕓 Possível entrada: ${hEntrada}`);
+                    enviarTelegram(`⚠️ *ALERTA BRAIN PRO*\n\n📊 Ativo: ${idAtivo}\n🎯 Padrão: ${padrao.nome}\n🕓 Analisando virada de vela...`);
                 }
             }
 
-            // 2. VIRADA DE VELA
+            // VIRADA DE VELA (Execução)
             if (ohlc.open_time !== est.lastCandleTime) {
                 if (est.alertaEnviado) {
-                    const padraoFinal = analisarPadrao(est.history);
+                    const padraoFinal = analisarPadrao(est.history, idAtivo);
                     if (padraoFinal && padraoFinal.nome === est.sinalPendente.nome) {
-                        // ENTRADA CONFIRMADA
-                        const { hIn, hFim } = obterHorarios();
-                        const valor = (config.bancaAtual * (config.percentualEntrada / 100)).toFixed(2);
-                        enviarTelegram(`🚀 *ENTRADA CONFIRMADA*\n\n👉Clique agora!\n📊 Ativo: ${ativo.nome}\n🎯 Padrão: ${padraoFinal.nome}\n📈 Direção: ${padraoFinal.dir}\n💰 Entrada: R$ ${valor}\n💰 Banca: R$ ${config.bancaAtual.toFixed(2)}\n⏰ Inicio: ${hIn}\n🏁 Fim: ${hFim}`);
+                        const valorEntrada = (configGlobal.bancaAtual * (configGlobal.percentualEntrada / 100)).toFixed(2);
+                        enviarTelegram(`🚀 *ENTRADA CONFIRMADA*\n\n📊 Ativo: ${idAtivo}\n📈 Direção: ${padraoFinal.dir}\n💰 Valor: R$ ${valorEntrada}\n💰 Banca: R$ ${configGlobal.bancaAtual.toFixed(2)}`);
                     } else {
-                        // ABORTADO
-                        enviarTelegram(`❌ *ALERTA ABORTADO*\n\n📊 Ativo: ${ativo.nome}\n📈 Direção: ${est.sinalPendente.dir}\n⏰ Horário: ${new Date().toLocaleTimeString()}\n📢 Motivo: Perda de padrão na virada.`);
+                        enviarTelegram(`❌ *ALERTA ABORTADO*\n\n📊 Ativo: ${idAtivo}\n📢 Padrão desfeito na virada.`);
                     }
                 }
                 est.lastCandleTime = ohlc.open_time;
                 est.alertaEnviado = false;
                 est.sinalPendente = null;
                 est.history.push({ open: ohlc.open, close: ohlc.close });
+                if (est.history.length > 60) est.history.shift();
             }
         }
     });
 
-    ws.on('close', () => setTimeout(() => conectarAtivo(ativo), 5000));
+    ws.on('close', () => setTimeout(() => conectar(idAtivo), 5000));
 }
 
-ATIVOS.forEach(a => conectarAtivo(a));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.listen(PORT, () => console.log(`SERVIDOR RODANDO NA PORTA ${PORT}`));
+// Inicia todos os ativos
+configGlobal.ativosAtivos.forEach(id => conectar(id));
+
+app.listen(PORT, () => console.log(`🚀 Cérebro Online na porta ${PORT}`));
