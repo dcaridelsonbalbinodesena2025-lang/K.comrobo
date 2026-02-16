@@ -3,195 +3,145 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BRAIN PRO - DASHBOARD</title>
+    <title>BRAIN PRO - DASHBOARD V2</title>
     <style>
-        :root {
-            --primary: #00d4ff;
-            --bg: #0a0e17;
-            --card: #161b22;
-            --text: #ffffff;
-            --success: #00ff88;
-            --danger: #ff4444;
-        }
+        :root { --primary: #00d4ff; --bg: #050a12; --card: #111827; --text: #e5e7eb; --success: #10b981; --danger: #ef4444; --warning: #f59e0b; }
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; margin: 0; padding: 10px; }
+        
+        .header { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--primary); }
+        .grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+        @media(min-width: 768px) { .grid { grid-template-columns: 1fr 1fr; } }
 
-        body {
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+        .card { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #1f2937; }
+        h3 { margin-top: 0; color: var(--primary); font-size: 16px; border-bottom: 1px solid #1f2937; padding-bottom: 8px; }
 
-        .header {
-            width: 100%;
-            max-width: 1200px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: var(--card);
-            border-radius: 10px;
-            border-bottom: 3px solid var(--primary);
-        }
+        .input-group { margin-bottom: 10px; }
+        label { display: block; font-size: 12px; margin-bottom: 4px; color: #9ca3af; }
+        input, select { width: 100%; background: #1f2937; border: 1px solid #374151; color: white; padding: 8px; border-radius: 6px; box-sizing: border-box; }
 
-        .logo {
-            font-size: 24px;
-            font-weight: bold;
-            color: var(--primary);
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
+        .switch-group { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 14px; }
+        .switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #374151; transition: .4s; border-radius: 20px; }
+        input:checked + .slider { background-color: var(--primary); }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider:before { transform: translateX(20px); }
 
-        .grid-container {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-            gap: 20px;
-            width: 100%;
-            max-width: 1200px;
-        }
+        .placar-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; text-align: center; }
+        .placar-item { padding: 10px; border-radius: 8px; background: #1f2937; }
+        .val { display: block; font-weight: bold; font-size: 18px; }
+        .lab { font-size: 10px; text-transform: uppercase; color: #9ca3af; }
 
-        .ativo-card {
-            background: var(--card);
-            border-radius: 12px;
-            padding: 15px;
-            text-align: center;
-            border: 1px solid #30363d;
-            transition: 0.3s;
-        }
-
-        .ativo-card:hover {
-            border-color: var(--primary);
-        }
-
-        .ativo-nome {
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 10px;
-            color: var(--primary);
-        }
-
-        canvas {
-            width: 100% !important;
-            height: 200px !important;
-            background: #000;
-            border-radius: 5px;
-        }
-
-        .status-container {
-            margin-top: 10px;
-            display: flex;
-            justify-content: space-around;
-            font-size: 14px;
-        }
-
-        .btn-telegram {
-            margin-top: 20px;
-            background: #229ED9;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
-        }
+        .btn-save { width: 100%; background: var(--primary); color: #000; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
     </style>
 </head>
 <body>
 
     <div class="header">
-        <div class="logo">Brain Pro Multi-Ativos</div>
-        <div id="relogio">00:00:00</div>
+        <div><strong>BRAIN PRO</strong> <small>V2.0</small></div>
+        <div id="clock">00:00:00</div>
     </div>
 
-    <div class="grid-container" id="monitor-grid">
+    <div class="grid">
+        <div class="card">
+            <h3>💰 Financeiro & Banca</h3>
+            <div class="input-group">
+                <label>Banca Inicial (R$)</label>
+                <input type="number" id="banca_inicial" value="1000">
+            </div>
+            <div class="input-group">
+                <label>Payout (%)</label>
+                <input type="number" id="payout" value="85">
+            </div>
+            <div class="input-group">
+                <label>Entrada (% da Banca)</label>
+                <input type="number" id="percentual_entrada" value="1">
+            </div>
+            <div class="placar-item" style="background: #000; margin-top: 10px;">
+                <span class="lab">Saldo Atual</span>
+                <span id="banca_atual" class="val" style="color: var(--success);">R$ 1000,00</span>
+            </div>
         </div>
 
-    <button class="btn-telegram">BOT TELEGRAM ATIVO ✅</button>
+        <div class="card">
+            <h3>⚙️ Filtros & Tendência</h3>
+            <div class="switch-group">
+                <span>Engolfo Alta/Baixa</span>
+                <label class="switch"><input type="checkbox" id="padrao_engolfo" checked><span class="slider"></span></label>
+            </div>
+            <div class="switch-group">
+                <span>Martelo/Estrela</span>
+                <label class="switch"><input type="checkbox" id="padrao_martelo"><span class="slider"></span></label>
+            </div>
+            <div class="switch-group">
+                <span>Filtro EMA (Tendência)</span>
+                <label class="switch"><input type="checkbox" id="filtro_ema" checked><span class="slider"></span></label>
+            </div>
+            <div class="switch-group">
+                <span>Tendência M5/M15</span>
+                <label class="switch"><input type="checkbox" id="filtro_m5_m15"><span class="slider"></span></label>
+            </div>
+            <div class="switch-group">
+                <span>Suporte & Resistência</span>
+                <label class="switch"><input type="checkbox" id="filtro_sr"><span class="slider"></span></label>
+            </div>
+        </div>
 
-    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
-    <script>
-        // Lista de ativos
-        const ativos = [
-            { id: "R_100", nome: "Volatility 100" },
-            { id: "R_75", nome: "Volatility 75" },
-            { id: "R_50", nome: "Volatility 50" },
-            { id: "R_25", nome: "Volatility 25" },
-            { id: "R_10", nome: "Volatility 10" },
-            { id: "1HZ100V", nome: "Volatility 100 (1s)" }
-        ];
+        <div class="card">
+            <h3>📊 Placar Geral</h3>
+            <div class="placar-grid">
+                <div class="placar-item"><span id="win_direto" class="val" style="color:var(--success)">0</span><span class="lab">Dir</span></div>
+                <div class="placar-item"><span id="win_g1" class="val" style="color:var(--primary)">0</span><span class="lab">G1</span></div>
+                <div class="placar-item"><span id="win_g2" class="val" style="color:var(--warning)">0</span><span class="lab">G2</span></div>
+                <div class="placar-item"><span id="loss" class="val" style="color:var(--danger)">0</span><span class="lab">Red</span></div>
+            </div>
+            <div style="text-align:center; margin-top:10px;">
+                <small>Assertividade:</small> <strong id="assertividade">0%</strong>
+            </div>
+        </div>
 
-        const grid = document.getElementById('monitor-grid');
-        const charts = {};
-
-        // Criar os mini-gráficos para cada ativo
-        ativos.forEach(ativo => {
-            const card = document.createElement('div');
-            card.className = 'ativo-card';
-            card.innerHTML = `
-                <div class="ativo-nome">${ativo.nome}</div>
-                <div id="chart_${ativo.id}"></div>
-                <div class="status-container">
-                    <span id="preco_${ativo.id}">Carregando...</span>
+        <div class="card">
+            <h3>📡 Ativos em Análise</h3>
+            <div id="lista_ativos">
                 </div>
-            `;
-            grid.appendChild(card);
+            <button class="btn-save" onclick="salvarConfig()">ATUALIZAR CÉREBRO 🧠</button>
+        </div>
+    </div>
 
-            const chart = LightweightCharts.createChart(document.getElementById(`chart_${ativo.id}`), {
-                width: 330,
-                height: 200,
-                layout: { backgroundColor: '#000', textColor: '#fff' },
-                grid: { vertLines: { color: '#1f1f1f' }, horzLines: { color: '#1f1f1f' } },
-                timeScale: { timeVisible: true, secondsVisible: true }
-            });
+    <script>
+        const ativos = ["R_100", "R_75", "R_50", "R_25", "R_10", "1HZ100V"];
+        const listaDiv = document.getElementById('lista_ativos');
 
-            charts[ativo.id] = chart.addCandlestickSeries();
-            
-            // Conectar ao WebSocket da Deriv para atualizar o visual
-            const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
-            ws.onopen = () => {
-                ws.send(JSON.stringify({
-                    ticks_history: ativo.id,
-                    end: "latest",
-                    count: 50,
-                    style: "candles",
-                    granularity: 60,
-                    subscribe: 1
-                }));
-            };
-
-            ws.onmessage = (msg) => {
-                const res = JSON.parse(msg.data);
-                if (res.candles) {
-                    const data = res.candles.map(c => ({
-                        time: c.epoch,
-                        open: c.open,
-                        high: c.high,
-                        low: c.low,
-                        close: c.close
-                    }));
-                    charts[ativo.id].setData(data);
-                }
-                if (res.ohlc) {
-                    charts[ativo.id].update({
-                        time: res.ohlc.open_time,
-                        open: parseFloat(res.ohlc.open),
-                        high: parseFloat(res.ohlc.high),
-                        low: parseFloat(res.ohlc.low),
-                        close: parseFloat(res.ohlc.close)
-                    });
-                    document.getElementById(`preco_${ativo.id}`).innerText = `Preço: ${res.ohlc.close}`;
-                }
-            };
+        ativos.forEach(at => {
+            listaDiv.innerHTML += `
+                <div class="switch-group">
+                    <span>${at}</span>
+                    <label class="switch"><input type="checkbox" class="ativo_check" value="${at}" checked><span class="slider"></span></label>
+                </div>`;
         });
 
-        // Relógio
-        setInterval(() => {
-            document.getElementById('relogio').innerText = new Date().toLocaleTimeString();
-        }, 1000);
+        function salvarConfig() {
+            const config = {
+                banca: document.getElementById('banca_inicial').value,
+                payout: document.getElementById('payout').value,
+                entrada: document.getElementById('percentual_entrada').value,
+                filtros: {
+                    engolfo: document.getElementById('padrao_engolfo').checked,
+                    ema: document.getElementById('filtro_ema').checked,
+                    tendencia_m5: document.getElementById('filtro_m5_m15').checked
+                },
+                ativos_ativos: Array.from(document.querySelectorAll('.ativo_check:checked')).map(i => i.value)
+            };
+
+            // Envia para o servidor Render
+            fetch('/atualizar-config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            }).then(() => alert("Configurações enviadas ao Robô!"));
+        }
+
+        setInterval(() => { document.getElementById('clock').innerText = new Date().toLocaleTimeString(); }, 1000);
     </script>
 </body>
 </html>
