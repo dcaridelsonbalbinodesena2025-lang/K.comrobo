@@ -1,183 +1,147 @@
-const express = require('express');
 const WebSocket = require('ws');
 const fetch = require('node-fetch');
+const express = require('express');
+const cors = require('cors');
 
 const app = express();
 app.use(express.json());
-app.use(express.static('public'));
+app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 
+// --- CONFIGURAÇÕES DO TELEGRAM ---
 const TG_TOKEN = "8427077212:AAEiL_3_D_-fukuaR95V3FqoYYyHvdCHmEI";
 const TG_CHAT_ID = "-1003355965894";
+const LINK_CORRETORA = "https://track.deriv.com/_S_W1N_";
 
-// --- ESTADO DO ROBÔ ---
-let bancaAtual = 2000;
-let placar = { win: 0, loss: 0 };
-
-let configGlobal = {
-    payout: 0.85,
-    percentualEntrada: 10, 
-    gale: { tipo: 'smart', nivel: 2 },
-    emas: { e10: true, e20: true },
-    padroes: { engolfo: true, tvelas: true },
-    slots: ["R_100", "R_75", "R_50", "R_25", "R_10", "1HZ100V"]
+let configElite = {
+    banca: 5000,
+    entrada_perc: 1,
+    payout: 95,
+    gale: { tipo: "smart", nivel: 3 },
+    emas: { e20: true, e200: false },
+    timeframes: { m5: true, m15: true },
+    padroes: { engolfo: true, hammer: true, tres_velas: true }
 };
 
-let estadosAtivos = {};
+let motores = {};
 
-function calcularEMA(data, period) {
-    if (data.length < period) return 0;
-    let k = 2 / (period + 1);
-    let ema = data[0].close;
-    for (let i = 1; i < data.length; i++) { ema = (data[i].close * k) + (ema * (1 - k)); }
-    return ema;
+// --- FUNÇÃO PARA PEGAR HORÁRIOS ---
+function getHorarios() {
+    const agora = new Date();
+    const inicio = agora.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
+    // Adiciona 1 minuto para o tempo de fim (expiração M1)
+    const expira = new Date(agora.getTime() + 60000);
+    const fim = expira.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    
+    return { inicio, fim };
 }
 
-async function analisarMercado(history, idAtivo) {
-    if (history.length < 30) return null;
-    const atual = history[history.length - 1];
-    const anterior = history[history.length - 2];
-    let sinal = null;
-    let padraoNome = "";
+// --- FUNÇÃO DE MENSAGENS FORMATADAS ---
+async function enviarTelegram(msg, comBotao = true) {
+    const url = `https://api.telegram.org/bot${TG_TOKEN}/sendMessage`;
+    const payload = {
+        chat_id: TG_CHAT_ID,
+        text: msg,
+        parse_mode: "Markdown",
+        reply_markup: comBotao ? {
+            inline_keyboard: [[{ text: "📲 ACESSAR CORRETORA", url: LINK_CORRETORA }]]
+        } : undefined
+    };
 
-    if (configGlobal.padroes.engolfo) {
-        if (atual.close > atual.open && anterior.open > anterior.close && atual.close > anterior.open) { sinal = "CALL"; padraoNome = "ENGOLFO ALTA"; }
-        if (atual.open > atual.close && anterior.close > anterior.open && atual.close < anterior.open) { sinal = "PUT"; padraoNome = "ENGOLFO BAIXA"; }
-    }
-
-    if (configGlobal.emas.e20 && sinal) {
-        const e20 = calcularEMA(history, 20);
-        if (sinal === "CALL" && atual.close < e20) return null;
-        if (sinal === "PUT" && atual.close > e20) return null;
-    }
-    return sinal ? { direcao: sinal, padrao: padraoNome } : null;
-}
-
-async function enviarTelegram(msg) {
-    fetch(`https://api.telegram.org/bot${TG_TOKEN}/sendMessage`, {
+    fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: TG_CHAT_ID, text: msg, parse_mode: "Markdown" })
-    }).catch(e => console.log("Erro TG"));
+        body: JSON.stringify(payload)
+    }).catch(e => console.log("Erro Telegram:", e.message));
 }
 
-async function executarCiclo(idAtivo, analise, nivelGale = 0) {
-    const est = estadosAtivos[idAtivo];
-    const valorAposta = parseFloat((bancaAtual * (configGlobal.percentualEntrada / 100) * Math.pow(2.1, nivelGale)).toFixed(2));
-    
-    // Desconta da banca imediatamente
-    bancaAtual -= valorAposta;
+// --- LÓGICA DE DETECÇÃO DE PADRÕES ---
+function analisarEstrategia(velas) {
+    if (velas.length < 5) return null;
+    const c = velas[velas.length - 1]; // Candlestick Atual
+    const a = velas[velas.length - 2]; // Anterior
+    const r = velas[velas.length - 3]; // Retrasada
 
-    const agora = new Date();
-    const fim = new Date(agora.getTime() + 60000);
-    const hInicio = agora.toLocaleTimeString();
-    const hFim = fim.toLocaleTimeString();
+    const corpoC = Math.abs(c.close - c.open);
+    const corpoA = Math.abs(a.close - a.open);
 
-    let label = nivelGale === 0 ? "🚀 ENTRADA CONFIRMADA" : `🔄 GALE ${nivelGale}`;
-    
-    let msg = `${label}\n\n👉 *Clique agora!* 👈\n\n📊 Ativo: ${idAtivo}\n📈 Direção: ${analise.direcao}\n💰 Valor: R$ ${valorAposta.toFixed(2)}\n⏰ Inicio: ${hInicio}\n🏁 Fim: ${hFim}\n💵 Saldo em conta: R$ ${bancaAtual.toFixed(2)}`;
-    await enviarTelegram(msg);
-
-    setTimeout(async () => {
-        const vela = est.history[est.history.length - 1];
-        const win = (analise.direcao === "CALL" && vela.close > vela.open) || (analise.direcao === "PUT" && vela.close < vela.open);
-
-        if (win) {
-            const lucroTotal = valorAposta + (valorAposta * configGlobal.payout);
-            bancaAtual += lucroTotal;
-            placar.win++;
-            await enviarTelegram(`✅ **GREEN NO ${idAtivo}!!**\n📊 Placar: ${placar.win}W - ${placar.loss}L\n💵 Banca: R$ ${bancaAtual.toFixed(2)}`);
-            est.emOperacao = false;
-            aconselharGestao();
-        } else if (nivelGale < configGlobal.gale.nivel) {
-            const e10 = calcularEMA(est.history, 10);
-            const inverteu = (analise.direcao === "CALL" && vela.close < e10) || (analise.direcao === "PUT" && vela.close > e10);
-            
-            if (configGlobal.gale.tipo === 'smart' && inverteu) {
-                placar.loss++;
-                await enviarTelegram(`🚫 **GALE ABORTADO EM ${idAtivo}**\n📉 Prejuízo: R$ ${valorAposta.toFixed(2)}\n📊 Placar: ${placar.win}W - ${placar.loss}L\n💵 Banca: R$ ${bancaAtual.toFixed(2)}`);
-                est.emOperacao = false;
-                aconselharGestao();
-            } else {
-                executarCiclo(idAtivo, analise, nivelGale + 1);
-            }
-        } else {
-            placar.loss++;
-            await enviarTelegram(`❌ **RED FINAL EM ${idAtivo}!**\n📊 Placar: ${placar.win}W - ${placar.loss}L\n💵 Banca: R$ ${bancaAtual.toFixed(2)}`);
-            est.emOperacao = false;
-            aconselharGestao();
-        }
-    }, 61000);
-}
-
-function aconselharGestao() {
-    if (placar.win >= 3) {
-        enviarTelegram("🏆 **META BATIDA!**\nVocê já fez 3 vitórias. Objetivo alcançado! Sinais continuam, mas considere o lucro no bolso! 💰");
-    } else if (placar.loss >= 1) {
-        enviarTelegram("🛑 **ALERTA DE STOP LOSS!**\nVocê atingiu seu limite de perda. Considere parar para preservar sua banca! 📉");
-    } else {
-        let faltam = 3 - placar.win;
-        enviarTelegram(`📢 Info: Você ainda tem ${faltam} oportunidades para sua meta de 3 Green.`);
+    // 1. ENGOLFO DE ALTA / BAIXA
+    if (configElite.padroes.engolfo) {
+        if (c.close > a.open && a.close < a.open && c.close > c.open && corpoC > corpoA)
+            return { dir: "CALL", nome: "ENGOLFO DE ALTA 📈", emoji: "🟢" };
+        if (c.close < a.open && a.close > a.open && c.close < c.open && corpoC > corpoA)
+            return { dir: "PUT", nome: "ENGOLFO DE BAIXA 📉", emoji: "🔴" };
     }
+
+    // 2. MARTELO (REVERSÃO)
+    if (configElite.padroes.hammer) {
+        const pavioInf = c.open > c.close ? c.low - c.close : c.low - c.open;
+        if (pavioInf > (corpoC * 2.5)) return { dir: "CALL", nome: "MARTELO DE REVERSÃO 🔨", emoji: "🟢" };
+    }
+
+    // 3. 3 CORVOS (QUEDA FORTE)
+    if (configElite.padroes.tres_velas) {
+        if (c.close < a.close && a.close < r.close && c.close < c.open)
+            return { dir: "PUT", nome: "3 CORVOS (BAIXA FORTE) 🦅", emoji: "🔴" };
+    }
+
+    return null;
 }
 
-function conectar(idAtivo) {
-    if (idAtivo === "NONE") return;
-    const ws = new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089');
-    ws.on('open', () => ws.send(JSON.stringify({ ticks_history: idAtivo, end: "latest", count: 100, style: "candles", granularity: 60, subscribe: 1 })));
-    
-    ws.on('message', async (data) => {
-        const res = JSON.parse(data);
-        if (!estadosAtivos[idAtivo]) estadosAtivos[idAtivo] = { history: [], lastTime: 0, alertaEnviado: false, sinalPendente: null, emOperacao: false };
-        const est = estadosAtivos[idAtivo];
-        
-        if (res.candles) est.history = res.candles;
-        
-        if (res.ohlc) { // REMOVI O "!stopAtivo" DAQUI PARA ELE NUNCA PARAR
-            const segundos = new Date().getSeconds();
-            
-            // Lógica de Alerta
-            if (segundos >= 50 && segundos < 58 && !est.alertaEnviado && !est.emOperacao) {
-                const analise = await analisarMercado(est.history, idAtivo);
-                if (analise) {
-                    est.alertaEnviado = true;
-                    est.sinalPendente = analise;
-                    const hEntrada = new Date(new Date().getTime() + (60 - segundos) * 1000).toLocaleTimeString();
-                    enviarTelegram(`⚠️ *ALERTA BRAIN PRO*\n📊 Ativo: ${idAtivo}\n🎯 Padrão: ${analise.padrao}\n⏰ Possível entrada às: ${hEntrada}`);
+// --- MOTOR DE PROCESSAMENTO ---
+function iniciarMotor(cardId, ativoId, nomeAtivo) {
+    if (motores[cardId]?.ws) motores[cardId].ws.terminate();
+    if (ativoId === "NONE") return;
+
+    let m = {
+        nome: nomeAtivo,
+        ws: new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089'),
+        velas: [], preco: 0
+    };
+
+    m.ws.on('open', () => {
+        m.ws.send(JSON.stringify({ ticks: ativoId }));
+        m.ws.send(JSON.stringify({ ticks_history: ativoId, end: "latest", count: 30, granularity: 60, subscribe: 1 }));
+    });
+
+    m.ws.on('message', (data) => {
+        const res = JSON.parse(data.toString());
+        if (res.tick) m.preco = res.tick.quote;
+        if (res.ohlc) {
+            const candle = { open: res.ohlc.open, close: res.ohlc.close, low: res.ohlc.low, high: res.ohlc.high };
+            if (m.velas.length > 30) m.velas.shift();
+            m.velas.push(candle);
+
+            const seg = new Date().getSeconds();
+
+            // ALERTA DE PRÉ-SINAL (45s)
+            if (seg === 45) {
+                const sinal = analisarEstrategia(m.velas);
+                if (sinal) {
+                    enviarTelegram(`🔍 *ALERTA DE PRÉ-SINAL*\n\n📊 Ativo: ${m.nome}\n🎯 Estratégia: ${sinal.nome}\n⚡ Direção: ${sinal.dir}\n⏳ Aguarde a confirmação...`, false);
                 }
             }
-            
-            // Virada de Vela
-            if (res.ohlc.open_time !== est.lastTime) {
-                if (est.alertaEnviado) {
-                    const confirmacao = await analisarMercado(est.history, idAtivo);
-                    if (confirmacao && confirmacao.direcao === est.sinalPendente.direcao) {
-                        est.emOperacao = true;
-                        executarCiclo(idAtivo, confirmacao);
-                    } else {
-                        enviarTelegram(`❌ *ALERTA ABORTADO*\n📊 Ativo: ${idAtivo}\nPadrão desfeito na virada.`);
-                    }
+
+            // CONFIRMAÇÃO DE ENTRADA (00s)
+            if (seg === 0) {
+                const sinal = analisarEstrategia(m.velas);
+                if (sinal) {
+                    const { inicio, fim } = getHorarios();
+                    const valor = (configElite.banca * (configElite.entrada_perc / 100)).toFixed(2);
+                    enviarTelegram(`🚀 *ENTRADA CONFIRMADA*\n\n📊 Ativo: ${m.nome}\n🎯 Padrão: ${sinal.nome}\n📈 Operação: ${sinal.dir === "CALL" ? "COMPRA 🟢" : "VENDA 🔴"}\n💰 Valor: R$ ${valor}\n\n🕒 *HORÁRIO:* ${inicio}\n🏁 *TÉRMINO:* ${fim}\n\n🛡️ Proteção: Até Gale ${configElite.gale.nivel}\n⚙️ Modo: ${configElite.gale.tipo === 'smart' ? 'Gale Inteligente' : 'Dobra'}`);
                 }
-                est.alertaEnviado = false;
-                est.lastTime = res.ohlc.open_time;
-                est.history.push({ open: res.ohlc.open, close: res.ohlc.close });
-                if (est.history.length > 100) est.history.shift();
             }
         }
     });
-    ws.on('close', () => setTimeout(() => conectar(idAtivo), 5000));
+    motores[cardId] = m;
 }
 
-
 app.post('/atualizar-config', (req, res) => {
-    configGlobal = { ...configGlobal, ...req.body };
-    bancaAtual = parseFloat(req.body.banca) || bancaAtual;
-    configGlobal.slots.forEach(id => conectar(id));
-    res.sendStatus(200);
+    configElite = req.body;
+    configElite.slots.forEach(s => iniciarMotor(s.id, s.ativo, s.nome));
+    res.json({ success: true });
 });
 
-app.listen(PORT, () => {
-    console.log(`🚀 Cérebro de Elite Atualizado Online!`);
-    configGlobal.slots.forEach(id => conectar(id));
-});
+app.listen(PORT, () => console.log(`BRAIN ELITE V3 ONLINE - PORTA ${PORT}`));
