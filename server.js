@@ -14,7 +14,7 @@ const TG_TOKEN = "8427077212:AAEiL_3_D_-fukuaR95V3FqoYYyHvdCHmEI";
 const TG_CHAT_ID = "-1003355965894";
 const LINK_CORRETORA = "https://track.deriv.com/_S_W1N_";
 
-// --- ESTADO INICIAL (SINCRONIZADO COM O PAINEL) ---
+// --- ESTADO GLOBAL COM VALORES PADRÃO (SEGURANÇA) ---
 let configElite = {
     banca: 5000,
     entrada_perc: 1,
@@ -46,17 +46,12 @@ async function enviarTelegram(msg, comBotao = true) {
         parse_mode: "Markdown",
         reply_markup: comBotao ? { inline_keyboard: [[{ text: "📲 ACESSAR CORRETORA", url: LINK_CORRETORA }]] } : undefined
     };
-
     try {
-        await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+        await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     } catch (e) { console.log("Erro TG:", e.message); }
 }
 
-// --- ESTRATÉGIA COMPLETA ---
+// --- ESTRATÉGIA ---
 function analisarEstrategia(velas) {
     if (velas.length < 5) return null;
     const c = velas[velas.length - 1]; 
@@ -65,27 +60,27 @@ function analisarEstrategia(velas) {
     const corpoC = Math.abs(c.close - c.open);
     const corpoA = Math.abs(a.close - a.open);
 
-    if (configElite.padroes.engolfo) {
+    if (configElite.padroes?.engolfo) {
         if (c.close > a.open && a.close < a.open && c.close > c.open && corpoC > corpoA) return { dir: "CALL", nome: "ENGOLFO DE ALTA 📈" };
         if (c.close < a.open && a.close > a.open && c.close < c.open && corpoC > corpoA) return { dir: "PUT", nome: "ENGOLFO DE BAIXA 📉" };
     }
-    if (configElite.padroes.hammer) {
+    if (configElite.padroes?.hammer) {
         const pavioInf = c.open > c.close ? c.low - c.close : c.low - c.open;
         if (pavioInf > (corpoC * 2.5)) return { dir: "CALL", nome: "MARTELO DE REVERSÃO 🔨" };
     }
-    if (configElite.padroes.tres_velas) {
+    if (configElite.padroes?.tres_velas) {
         if (c.close < a.close && a.close < r.close && c.close < c.open) return { dir: "PUT", nome: "3 CORVOS (BAIXA FORTE) 🦅" };
     }
-    if (configElite.padroes.soldados) {
+    if (configElite.padroes?.soldados) {
         if (c.close > a.close && a.close > r.close && c.close > c.open) return { dir: "CALL", nome: "3 SOLDADOS (ALTA FORTE) ⚔️" };
     }
     return null;
 }
 
-// --- MOTOR DE ATIVOS ---
+// --- MOTOR ---
 function iniciarMotor(slot) {
+    if (!slot || !slot.id || slot.ativo === "NONE") return;
     if (motores[slot.id]?.ws) motores[slot.id].ws.terminate();
-    if (slot.ativo === "NONE") return;
 
     let m = {
         nome: slot.nome,
@@ -102,8 +97,8 @@ function iniciarMotor(slot) {
         const res = JSON.parse(data.toString());
         if (res.ohlc) {
             const candle = { open: res.ohlc.open, close: res.ohlc.close, low: res.ohlc.low, high: res.ohlc.high };
-            if (m.velas.length > 30) m.velas.shift();
             m.velas.push(candle);
+            if (m.velas.length > 30) m.velas.shift();
 
             const seg = new Date().getSeconds();
             if (seg === 45) {
@@ -123,21 +118,24 @@ function iniciarMotor(slot) {
     motores[slot.id] = m;
 }
 
-// --- ROTA DE ATUALIZAÇÃO ---
+// --- ROTA CORRIGIDA ---
 app.post('/atualizar-config', (req, res) => {
     try {
-        configElite = req.body;
-        console.log("Nova Config Recebida:", configElite);
+        const dados = req.body;
+        // Merge de segurança: mantém o que já existe se o painel mandar algo vazio
+        configElite = { ...configElite, ...dados };
         
-        if (configElite.slots) {
-            configElite.slots.forEach(slot => iniciarMotor(slot));
+        console.log("Config Sincronizada com Sucesso.");
+        
+        if (Array.isArray(dados.slots)) {
+            dados.slots.forEach(slot => iniciarMotor(slot));
         }
         
-        res.json({ success: true, message: "Sincronizado" });
+        res.status(200).json({ success: true });
     } catch (err) {
-        console.error("Erro no processamento:", err);
-        res.status(500).json({ success: false, error: err.message });
+        console.error("Erro fatal:", err);
+        res.status(500).json({ success: false });
     }
 });
 
-app.listen(PORT, () => console.log(`BRAIN ELITE V3 ONLINE`));
+app.listen(PORT, () => console.log(`SERVIDOR ELITE V3 ATIVO`));
