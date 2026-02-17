@@ -1,11 +1,11 @@
 const WebSocket = require('ws');
-const fetch = require('node-fetch'); // Certifique-se de usar node-fetch@2
+const fetch = require('node-fetch');
 const express = require('express');
 const cors = require('cors');
 
 const app = express();
 app.use(express.json());
-app.use(cors()); // CORS configurado aqui
+app.use(cors());
 
 const PORT = process.env.PORT || 3000;
 
@@ -14,6 +14,7 @@ const TG_TOKEN = "8427077212:AAEiL_3_D_-fukuaR95V3FqoYYyHvdCHmEI";
 const TG_CHAT_ID = "-1003355965894";
 const LINK_CORRETORA = "https://track.deriv.com/_S_W1N_";
 
+// --- ESTADO INICIAL (SINCRONIZADO COM O PAINEL) ---
 let configElite = {
     banca: 5000,
     entrada_perc: 1,
@@ -21,34 +22,29 @@ let configElite = {
     gale: { tipo: "smart", nivel: 3 },
     emas: { e20: true, e200: false },
     timeframes: { m5: true, m15: true },
-    padroes: { engolfo: true, hammer: true, tres_velas: true }
+    padroes: { engolfo: true, hammer: true, tres_velas: true, soldados: true }
 };
 
 let motores = {};
 
-// --- FUNÇÃO PARA PEGAR HORÁRIOS (BRASÍLIA) ---
+// --- FUNÇÃO DE HORÁRIOS BRASÍLIA ---
 function getHorarios() {
     const agora = new Date();
     const fusoSampa = new Date(agora.toLocaleString("en-US", {timeZone: "America/Sao_Paulo"}));
-    
     const inicio = fusoSampa.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    
     const expira = new Date(fusoSampa.getTime() + 60000);
     const fim = expira.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    
     return { inicio, fim };
 }
 
-// --- FUNÇÃO DE MENSAGENS FORMATADAS ---
+// --- ENVIO TELEGRAM ---
 async function enviarTelegram(msg, comBotao = true) {
     const url = `https://api.telegram.org/bot${TG_TOKEN}/sendMessage`;
     const payload = {
         chat_id: TG_CHAT_ID,
         text: msg,
         parse_mode: "Markdown",
-        reply_markup: comBotao ? {
-            inline_keyboard: [[{ text: "📲 ACESSAR CORRETORA", url: LINK_CORRETORA }]]
-        } : undefined
+        reply_markup: comBotao ? { inline_keyboard: [[{ text: "📲 ACESSAR CORRETORA", url: LINK_CORRETORA }]] } : undefined
     };
 
     try {
@@ -57,73 +53,63 @@ async function enviarTelegram(msg, comBotao = true) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-    } catch (e) {
-        console.log("Erro Telegram:", e.message);
-    }
+    } catch (e) { console.log("Erro TG:", e.message); }
 }
 
-// --- LÓGICA DE DETECÇÃO DE PADRÕES ---
+// --- ESTRATÉGIA COMPLETA ---
 function analisarEstrategia(velas) {
     if (velas.length < 5) return null;
     const c = velas[velas.length - 1]; 
     const a = velas[velas.length - 2]; 
     const r = velas[velas.length - 3]; 
-
     const corpoC = Math.abs(c.close - c.open);
     const corpoA = Math.abs(a.close - a.open);
 
     if (configElite.padroes.engolfo) {
-        if (c.close > a.open && a.close < a.open && c.close > c.open && corpoC > corpoA)
-            return { dir: "CALL", nome: "ENGOLFO DE ALTA 📈" };
-        if (c.close < a.open && a.close > a.open && c.close < c.open && corpoC > corpoA)
-            return { dir: "PUT", nome: "ENGOLFO DE BAIXA 📉" };
+        if (c.close > a.open && a.close < a.open && c.close > c.open && corpoC > corpoA) return { dir: "CALL", nome: "ENGOLFO DE ALTA 📈" };
+        if (c.close < a.open && a.close > a.open && c.close < c.open && corpoC > corpoA) return { dir: "PUT", nome: "ENGOLFO DE BAIXA 📉" };
     }
-
     if (configElite.padroes.hammer) {
         const pavioInf = c.open > c.close ? c.low - c.close : c.low - c.open;
         if (pavioInf > (corpoC * 2.5)) return { dir: "CALL", nome: "MARTELO DE REVERSÃO 🔨" };
     }
-
     if (configElite.padroes.tres_velas) {
-        if (c.close < a.close && a.close < r.close && c.close < c.open)
-            return { dir: "PUT", nome: "3 CORVOS (BAIXA FORTE) 🦅" };
+        if (c.close < a.close && a.close < r.close && c.close < c.open) return { dir: "PUT", nome: "3 CORVOS (BAIXA FORTE) 🦅" };
+    }
+    if (configElite.padroes.soldados) {
+        if (c.close > a.close && a.close > r.close && c.close > c.open) return { dir: "CALL", nome: "3 SOLDADOS (ALTA FORTE) ⚔️" };
     }
     return null;
 }
 
-// --- MOTOR ---
-function iniciarMotor(cardId, ativoId, nomeAtivo) {
-    if (motores[cardId]?.ws) motores[cardId].ws.terminate();
-    if (ativoId === "NONE") return;
+// --- MOTOR DE ATIVOS ---
+function iniciarMotor(slot) {
+    if (motores[slot.id]?.ws) motores[slot.id].ws.terminate();
+    if (slot.ativo === "NONE") return;
 
     let m = {
-        nome: nomeAtivo,
+        nome: slot.nome,
         ws: new WebSocket('wss://ws.binaryws.com/websockets/v3?app_id=1089'),
-        velas: [], preco: 0
+        velas: []
     };
 
     m.ws.on('open', () => {
-        m.ws.send(JSON.stringify({ ticks: ativoId }));
-        m.ws.send(JSON.stringify({ ticks_history: ativoId, end: "latest", count: 30, granularity: 60, subscribe: 1 }));
+        m.ws.send(JSON.stringify({ ticks: slot.ativo }));
+        m.ws.send(JSON.stringify({ ticks_history: slot.ativo, end: "latest", count: 30, granularity: 60, subscribe: 1 }));
     });
 
     m.ws.on('message', (data) => {
         const res = JSON.parse(data.toString());
-        if (res.tick) m.preco = res.tick.quote;
         if (res.ohlc) {
             const candle = { open: res.ohlc.open, close: res.ohlc.close, low: res.ohlc.low, high: res.ohlc.high };
             if (m.velas.length > 30) m.velas.shift();
             m.velas.push(candle);
 
             const seg = new Date().getSeconds();
-
             if (seg === 45) {
                 const sinal = analisarEstrategia(m.velas);
-                if (sinal) {
-                    enviarTelegram(`🔍 *ALERTA DE PRÉ-SINAL*\n\n📊 Ativo: ${m.nome}\n🎯 Estratégia: ${sinal.nome}\n⚡ Direção: ${sinal.dir}\n⏳ Aguarde a confirmação...`, false);
-                }
+                if (sinal) enviarTelegram(`🔍 *ALERTA DE PRÉ-SINAL*\n\n📊 Ativo: ${m.nome}\n🎯 Estratégia: ${sinal.nome}\n⚡ Direção: ${sinal.dir}\n⏳ Aguarde confirmação...`, false);
             }
-
             if (seg === 0) {
                 const sinal = analisarEstrategia(m.velas);
                 if (sinal) {
@@ -134,13 +120,24 @@ function iniciarMotor(cardId, ativoId, nomeAtivo) {
             }
         }
     });
-    motores[cardId] = m;
+    motores[slot.id] = m;
 }
 
+// --- ROTA DE ATUALIZAÇÃO ---
 app.post('/atualizar-config', (req, res) => {
-    configElite = req.body;
-    configElite.slots.forEach(s => iniciarMotor(s.id, s.ativo, s.nome));
-    res.json({ success: true });
+    try {
+        configElite = req.body;
+        console.log("Nova Config Recebida:", configElite);
+        
+        if (configElite.slots) {
+            configElite.slots.forEach(slot => iniciarMotor(slot));
+        }
+        
+        res.json({ success: true, message: "Sincronizado" });
+    } catch (err) {
+        console.error("Erro no processamento:", err);
+        res.status(500).json({ success: false, error: err.message });
+    }
 });
 
 app.listen(PORT, () => console.log(`BRAIN ELITE V3 ONLINE`));
